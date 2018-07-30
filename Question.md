@@ -8,11 +8,11 @@
 ```c++
 	class HubListenerImpl : public HubListener{...}
 ```
-1. Call `DeviceSetting::setAccelerateConfig(...)` to configure ACC (this step is optional)
+2. Call `DeviceSetting::setAccelerateConfig(...)` to configure ACC (this step is optional)
 
-2. Call `DeviceSetting::setDataNotifySwitch(...)` to open ACC 
+3. Call `DeviceSetting::setDataNotifySwitch(...)` to open ACC 
 
-3. Extract the data of accelerate speed  from `HubListenerImpl::onExtendedDeviceData(...)`
+4. Extract the data of accelerate speed  from `HubListenerImpl::onExtendedDeviceData(...)`
 ```c++
 void onExtendedDeviceData(SPDEVICE device, DeviceDataType dataType, gfsPtr<const vector<GF_UINT8>> data) override
 {
