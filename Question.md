@@ -1,6 +1,6 @@
 # F.A.Q.
 
-> How to get accelerate speed data of the `gForce`  by [gForceSDK](https://github.com/oymotion/gForceSDK/releases)
+> **How to get accelerate speed data of the `gForce`  by [gForceSDK](https://github.com/oymotion/gForceSDK/releases)?**
  
  
 
