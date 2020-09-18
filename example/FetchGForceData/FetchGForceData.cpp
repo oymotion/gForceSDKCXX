@@ -302,9 +302,9 @@ private:
 
 		DeviceSetting::DataNotifFlags flags = (DeviceSetting::DataNotifFlags)(
 			DeviceSetting::DNF_OFF
-			| DeviceSetting::DNF_ACCELERATE
-			| DeviceSetting::DNF_GYROSCOPE
-			| DeviceSetting::DNF_MAGNETOMETER
+			//| DeviceSetting::DNF_ACCELERATE
+			//| DeviceSetting::DNF_GYROSCOPE
+			//| DeviceSetting::DNF_MAGNETOMETER
 			//| DeviceSetting::DNF_EULERANGLE
 			//| DeviceSetting::DNF_QUATERNION
 			//| DeviceSetting::DNF_ROTATIONMATRIX
@@ -317,19 +317,26 @@ private:
 
 		printf("desired notification flags is 0x%08x, valid is 0x%08x\n", (GF_UINT32)flags, (GF_UINT32)(flags & featureMap));
 
-		ds->setDataNotifSwitch((DeviceSetting::DataNotifFlags)(flags & featureMap),
-			[](ResponseResult res) {
-			printf("result of setDataNotifSwitch is %u\n", (GF_UINT32)res);
-		});
+		flags = (DeviceSetting::DataNotifFlags)(flags & featureMap);
 
 		ds->setEMGRawDataConfig(650,						// sample rate
 			(DeviceSetting::EMGRowDataChannels)(0x00FF),	// channel 0~7
 			128,											// data length
 			8,												// adc resolution
-			[](ResponseResult result) {
-			string ret = (result == ResponseResult::RREST_SUCCESS) ? ("sucess") : ("failed");
-			printf("result of setEMGRawDataConfig is %s\n", ret.c_str());
-		});
+			[ds, flags](ResponseResult result) {
+				string ret = (result == ResponseResult::RREST_SUCCESS) ? ("sucess") : ("failed");
+				printf("result of setEMGRawDataConfig is %s\n", ret.c_str());
+			
+				if (result == ResponseResult::RREST_SUCCESS)
+				{
+					ds->setDataNotifSwitch(flags,
+						[](ResponseResult res) {
+							printf("result of setDataNotifSwitch is %u\n", (GF_UINT32)res);
+						}
+					);
+				}
+			}
+		);
 	}
 };
 
