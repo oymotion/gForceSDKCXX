@@ -34,7 +34,7 @@
 #include "SerialDetect.h"
 #include <mutex>
 #include <condition_variable>
-//#include "winsparkle.h"
+ //#include "winsparkle.h"
 #include <algorithm>
 #include <cctype>
 //#include "uWS.h"
@@ -77,7 +77,7 @@ public:
 		mQueueCv.notify_one();
 	}
 
-		T wait_and_pop() {
+	T wait_and_pop() {
 		std::unique_lock<std::mutex> lk(mQueueMx);
 		mQueueCv.wait(lk, [this] {return !mdataQueue.empty(); });
 		T retval = mdataQueue.front();
@@ -137,7 +137,7 @@ public:
 			//     in connecting or connected state, try to connect it.
 			//std::wcout << "[INFO]: Wow,Found the " << mDevice->getName() << ",try to connect it" << std::endl;
 			DeviceConnectionStatus status = mDevice->getConnectionStatus();
-			
+
 			if (DeviceConnectionStatus::Connected != status &&
 				DeviceConnectionStatus::Connecting != status)
 			{
@@ -185,32 +185,38 @@ public:
 
 		if (device)
 		{
-			static auto setting = device->getDeviceSetting();
+			auto setting = device->getDeviceSetting();
 
 			if (nullptr != setting)
 			{
-				setting->setDataNotifSwitch((DeviceSetting::DataNotifFlags)(DeviceSetting::DNF_OFF | DeviceSetting::DNF_EMG_RAW), \
-					                        [](ResponseResult result) {
-					std::string ret = (result == ResponseResult::RREST_SUCCESS) ? ("success") : ("failed");
-					std::cout << "[INFO]: Open raw data " << ret << ", result=" << (uint32_t)result << std::endl;
-				});
+				setting->enableDataNotification(0);
 
-				int ret = tryConfigEMG(setting, c_emgConfig[g_EMGchoice].sampleRate, 
-												c_emgConfig[g_EMGchoice].resolution);
-				if (0 == ret) {
-					bGetNewFile = true;
-				}
-				else {
+				this_thread::sleep_for(std::chrono::milliseconds(50));
+
+				int ret = tryConfigEMG(setting, c_emgConfig[g_EMGchoice].sampleRate, c_emgConfig[g_EMGchoice].resolution);
+
+				if (0 != ret) {
 					if (0 != g_EMGchoice)
-						ret = tryConfigEMG(setting, c_emgConfig[0].sampleRate,
-							c_emgConfig[0].resolution);
-					if (0 == ret)
-						bGetNewFile = true;
-					else {
-						std::cout << "[ERROR]: config emg parameters error,application will be quit" << std::endl;
+						ret = tryConfigEMG(setting, c_emgConfig[0].sampleRate, c_emgConfig[0].resolution);
+
+					if (0 != ret) {
+						std::cout << "[ERROR]: config emg parameters error, application will be quit" << std::endl;
 						mAppExit.store(true);
 					}
-						
+				}
+
+				if (0 == ret) {
+					setting->setDataNotifSwitch((DeviceSetting::DataNotifFlags)(DeviceSetting::DNF_OFF | DeviceSetting::DNF_EMG_RAW),
+						[this, setting](ResponseResult result) {
+							std::string res = (result == ResponseResult::RREST_SUCCESS) ? ("success") : ("failed");
+							std::cout << "[INFO]: Open raw data " << res << ", result=" << (uint32_t)result << std::endl;
+
+							if (result == ResponseResult::RREST_SUCCESS) {
+								setting->enableDataNotification(1);
+								bGetNewFile = true;
+							}
+						}
+					);
 				}
 			}
 		}
@@ -284,26 +290,26 @@ public:
 		string devicestatus;
 		switch (status)
 		{
-			case DeviceStatus::ReCenter:
-				devicestatus = "ReCenter";
-				break;
-			case DeviceStatus::UsbPlugged:
-				devicestatus = "UsbPlugged";
-				break;
-			case DeviceStatus::UsbPulled:
-				devicestatus = "UsbPulled";
-				break;
-			case DeviceStatus::Motionless:
-				devicestatus = "Motionless";
-				break;
-			default:
-			{
-				devicestatus = "Undefined: ";
-				string s;
-				stringstream ss(s);
-				ss << static_cast<int>(status);
-				devicestatus += ss.str();
-			}
+		case DeviceStatus::ReCenter:
+			devicestatus = "ReCenter";
+			break;
+		case DeviceStatus::UsbPlugged:
+			devicestatus = "UsbPlugged";
+			break;
+		case DeviceStatus::UsbPulled:
+			devicestatus = "UsbPulled";
+			break;
+		case DeviceStatus::Motionless:
+			devicestatus = "Motionless";
+			break;
+		default:
+		{
+			devicestatus = "Undefined: ";
+			string s;
+			stringstream ss(s);
+			ss << static_cast<int>(status);
+			devicestatus += ss.str();
+		}
 		}
 		cout << __FUNCTION__ << " has been called. " << devicestatus << endl;
 	}
@@ -333,16 +339,16 @@ public:
 				static GF_UINT8 pid = 0;
 				g_file.put(pid);
 				pid++;
-				g_file.write((const char *)&(*data)[0], data->size());
+				g_file.write((const char*)&(*data)[0], data->size());
 				ULARGE_INTEGER ltime;
 				ltime = GetFileTime();
-				g_file.write((const char *)&ltime, sizeof(ltime));
+				g_file.write((const char*)&ltime, sizeof(ltime));
 				printSingleFileRecordedBytes((int)g_file.tellp());
 			}
 			//LeaveCriticalSection(&g_CriticalSection);
 			g_MessageQueue.push(data);
 		}
-			break;
+		break;
 		default:
 			break;
 		}
@@ -389,30 +395,33 @@ private:
 	// keep a device to operate
 	gfsPtr<Device> mDevice;
 
-	int tryConfigEMG(gfsPtr<DeviceSetting>& setting, GF_UINT16 samRate, GF_UINT8 resol)
+	int tryConfigEMG(gfsPtr<DeviceSetting> setting, GF_UINT16 samRate, GF_UINT8 resol)
 	{
-		
 		ResponseResult ret = ResponseResult::RREST_FAILED;
+
 		for (int trytime = 0; trytime < 3; ++trytime) {
 			std::promise<ResponseResult> emgPromise;
 			auto emgFuture = emgPromise.get_future();
+
 			setting->setEMGRawDataConfig(samRate, //sample rate
 				(DeviceSetting::EMGRowDataChannels)(0x00FF), //channel 0~7 
 				128, //data length
 				resol,   //resolution
 				[&emgPromise](ResponseResult result) {
-				string retLog = (result == ResponseResult::RREST_SUCCESS) ? ("sucess") : ("failed");
-				std::cout << "[INFO]: Set Emg Config "
-					<< retLog << std::endl;
-				emgPromise.set_value(result);
-			});
+					string retLog = (result == ResponseResult::RREST_SUCCESS) ? ("sucess") : ("failed");
+					std::cout << "[INFO]: Set Emg Config " << retLog << "(" << (int)result << ")" << std::endl;
+					emgPromise.set_value(result);
+				});
+
 			if (ResponseResult::RREST_SUCCESS == emgFuture.get()) {
 				ret = ResponseResult::RREST_SUCCESS;
 				break;
 			}
 		}
+
 		if (ResponseResult::RREST_SUCCESS == ret)
 			return 0;
+
 		return -1;
 	}
 };
@@ -495,7 +504,7 @@ public:
 	}
 
 public:
-	gForceProcessor() :mThreadQuitFlag(false),identify(_T("EMG_CAPTURE")){
+	gForceProcessor() :mThreadQuitFlag(false), identify(_T("EMG_CAPTURE")) {
 
 	}
 	~gForceProcessor() {
@@ -518,7 +527,7 @@ public:
 		if (nullptr == mHub) {
 			return false;
 		}
-		mThread = std::thread(&gForceProcessor::ProcessHubEvent,this);
+		mThread = std::thread(&gForceProcessor::ProcessHubEvent, this);
 		return true;
 	}
 	void deint() {
@@ -535,7 +544,7 @@ public:
 		if (mSerialDetect) {
 			mSerialDetect->deinit();
 			mSerialDetect = nullptr;
-		}	
+		}
 	}
 };
 
@@ -562,7 +571,7 @@ BOOL processCtrlHandler(DWORD fdwCtrlType) {
 
 void processInputCommand() {
 	string inputCommand;
-	
+
 	while (true) {
 		// std::cin >> inputCommand;
 		// std::transform(inputCommand.begin(), inputCommand.end(), 
@@ -576,15 +585,15 @@ void processInputCommand() {
 		// }
 		// else {
 		// }
-		if(bRecording){
+		if (bRecording) {
 			int in_c = _getch();
 			if (in_c == 'Z' || in_c == 'z' || in_c == 'X' || in_c == 'x') {
 				// Exit writing to the current file...
 
 				// It takes a couple of seconds to flush some 'delayed' data.
 				cout << "\nExiting.......\n"
-						<< "Please wait 1 second for buffered data......\n";
-				bRecording =false;
+					<< "Please wait 1 second for buffered data......\n";
+				bRecording = false;
 				Sleep(1000);
 				g_file.close();
 				cout << "\nFile " << g_filename << " has been saved successfully :-) \n\n";
@@ -595,10 +604,11 @@ void processInputCommand() {
 				}
 				bGetNewFile = true;
 			}
-		}else{
-			if(bGetNewFile){
+		}
+		else {
+			if (bGetNewFile) {
 				Sleep(200);
-                waitInputFileName();
+				waitInputFileName();
 			}
 		}
 		Sleep(500);
@@ -606,9 +616,9 @@ void processInputCommand() {
 }
 
 
-static void waitInputFileName(void){
+static void waitInputFileName(void) {
 	std::cout << "\n"
-        << "Please enter the name of the file for recording your EMG data:\n";
+		<< "Please enter the name of the file for recording your EMG data:\n";
 	std::string dir = "./data_file/";
 
 	//make folder
@@ -617,7 +627,7 @@ static void waitInputFileName(void){
 	}
 
 	while (1)
-	{		
+	{
 		std::cin.getline(g_filename, FILE_NAME_SIZE);
 		dir.append(g_filename);
 		const string suffix[2] = { "_650Hz8Bit","_500Hz12Bit" };
@@ -630,11 +640,11 @@ static void waitInputFileName(void){
 		break;
 	}
 
-    std::cout << "\nPressing any key will start to record your EMG data to file " << g_filename << endl;
+	std::cout << "\nPress any key to record your EMG data to file " << g_filename << endl;
 	_getch();
-    std::cout<< "Recording to file started..."  <<std::endl;
-    bRecording = true;
-    std::cout << "During recording, pressing 'Z' will close the file and promt you to open another file to record, and pressing 'X' will also exit the program.\n\n";
+	std::cout << "Recording to file started..." << std::endl;
+	bRecording = true;
+	std::cout << "During recording, pressing 'Z' will close the file and promt you to open another file to record, and pressing 'X' will also exit the program.\n\n";
 }
 
 
@@ -661,7 +671,7 @@ unsigned char emg_config_parameters(void)
 	std::cout << "Please input the index 0/1: ";
 
 	char input[256];
-	std::cin.getline(input,256);
+	std::cin.getline(input, 256);
 	std::string str(input);
 
 	if (str.size() == 1 && str[0] == '1') {

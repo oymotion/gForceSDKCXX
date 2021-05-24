@@ -138,6 +138,7 @@ public:
 			gfsPtr<DeviceSetting> ds = device->getDeviceSetting();
 			if (nullptr != ds)
 			{
+				ds->enableDataNotification(0);
 				ds->getFeatureMap(std::bind(&GForceHandle::featureCallback, this, ds, std::placeholders::_1, std::placeholders::_2));
 			}
 		}
@@ -296,7 +297,12 @@ private:
 
 	void featureCallback(gfsPtr<DeviceSetting> ds, ResponseResult res, GF_UINT32 featureMap)
 	{
-		printf("feature map of device is 0x%08x\n", featureMap);
+		printf("[%s] res: %d, feature map of device: 0x%08x\n", __FUNCTION__, res, featureMap);
+
+		if (res != ResponseResult::RREST_SUCCESS)
+		{
+			return;
+		}
 
 		featureMap >>= 6;	// Convert feature map to notification flags
 
@@ -325,13 +331,18 @@ private:
 			8,												// adc resolution
 			[ds, flags](ResponseResult result) {
 				string ret = (result == ResponseResult::RREST_SUCCESS) ? ("sucess") : ("failed");
-				printf("result of setEMGRawDataConfig is %s\n", ret.c_str());
+				printf("result of setEMGRawDataConfig is %s(%d)\n", ret.c_str(), result);
 			
 				if (result == ResponseResult::RREST_SUCCESS)
 				{
 					ds->setDataNotifSwitch(flags,
-						[](ResponseResult res) {
+						[ds](ResponseResult res) {
 							printf("result of setDataNotifSwitch is %u\n", (GF_UINT32)res);
+
+							if (res == ResponseResult::RREST_SUCCESS)
+							{
+								ds->enableDataNotification(1);
+							}
 						}
 					);
 				}
