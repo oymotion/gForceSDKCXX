@@ -268,7 +268,21 @@ public:
 			break;
 
 		case DeviceDataType::DDT_EMGRAW:
+		{
+			auto ptr = data->data();
+
+			for (int i = 0; i < 128/*depends on setting*/; i++)
+			{
+				//for 8bpp mode
+				printf("Emg data [%d] = %u\n", i, *(reinterpret_cast<const uint8_t*>(ptr++)));
+
+				//for 12bpp mode
+				//   printf("Emg data [%d] = %u\n", i, *(reinterpret_cast<const uint16_t*>(ptr)));
+				//   ptr += 2;
+			}
+
 			break;
+		}
 
 		case DeviceDataType::DDT_HIDMOUSE:
 			break;
