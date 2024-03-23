@@ -19,7 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{CE2C0BCC-7F4F-441E-94C5-AD8C784CC166}</ProjectGuid>
+    <ProjectGuid>{CDC77B27-EB3E-4989-9667-8B3D9D51F79D}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>FetchGForceData</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
@@ -182,7 +182,7 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="FetchGForceData.cpp" />
+    <ClCompile Include="LEDandMotorCtrl.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>

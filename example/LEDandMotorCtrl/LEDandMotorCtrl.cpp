@@ -32,10 +32,16 @@
 #include "gforce.h"
 #include <atomic>
 #include <functional>
+#include <chrono>
 
 
 using namespace gf;
 using namespace std;
+
+using std::chrono::duration_cast;
+using std::chrono::milliseconds;
+using std::chrono::seconds;
+using std::chrono::system_clock;
 
 
 atomic<bool> bExiting = false;
@@ -132,14 +138,13 @@ public:
 	virtual void onDeviceConnected(SPDEVICE device) override
 	{
 		cout << __FUNCTION__ << " has been called." << endl;
-		
+
 		if (nullptr != device)
 		{
 			gfsPtr<DeviceSetting> ds = device->getDeviceSetting();
 			if (nullptr != ds)
 			{
-				ds->enableDataNotification(0);
-				ds->getFeatureMap(std::bind(&GForceHandle::featureCallback, this, ds, std::placeholders::_1, std::placeholders::_2));
+				ds->enableDataNotification(0);	// Disable data notificition
 			}
 		}
 	}
@@ -287,6 +292,11 @@ public:
 		return mLoop;
 	}
 
+	gfsPtr<Device> getDevice()
+	{
+		return mDevice;
+	}
+
 private:
 	// Indicates if we will keep message polling
 	bool mLoop = true;
@@ -294,61 +304,6 @@ private:
 	gfsPtr<Hub> mHub;
 	// keep a device to operate
 	gfsPtr<Device> mDevice;
-
-	void featureCallback(gfsPtr<DeviceSetting> ds, ResponseResult res, GF_UINT32 featureMap)
-	{
-		printf("[%s] res: %d, feature map of device: 0x%08x\n", __FUNCTION__, res, featureMap);
-
-		if (res != ResponseResult::RREST_SUCCESS)
-		{
-			return;
-		}
-
-		featureMap >>= 6;	// Convert feature map to notification flags
-
-		DeviceSetting::DataNotifFlags flags = (DeviceSetting::DataNotifFlags)(
-			DeviceSetting::DNF_OFF
-			//| DeviceSetting::DNF_ACCELERATE
-			//| DeviceSetting::DNF_GYROSCOPE
-			//| DeviceSetting::DNF_MAGNETOMETER
-			//| DeviceSetting::DNF_EULERANGLE
-			//| DeviceSetting::DNF_QUATERNION
-			//| DeviceSetting::DNF_ROTATIONMATRIX
-			//| DeviceSetting::DNF_EMG_GESTURE
-			| DeviceSetting::DNF_EMG_RAW
-			//| DeviceSetting::DNF_HID_MOUSE
-			//| DeviceSetting::DNF_HID_JOYSTICK
-			| DeviceSetting::DNF_DEVICE_STATUS
-		);
-
-		printf("desired notification flags is 0x%08x, valid is 0x%08x\n", (GF_UINT32)flags, (GF_UINT32)(flags & featureMap));
-
-		flags = (DeviceSetting::DataNotifFlags)(flags & featureMap);
-
-		ds->setEMGRawDataConfig(650,						// sample rate
-			(DeviceSetting::EMGRowDataChannels)(0x00FF),	// channel 0~7
-			128,											// data length
-			8,												// adc resolution
-			[ds, flags](ResponseResult result) {
-				string ret = (result == ResponseResult::RREST_SUCCESS) ? ("sucess") : ("failed");
-				printf("result of setEMGRawDataConfig is %s(%d)\n", ret.c_str(), result);
-			
-				if (result == ResponseResult::RREST_SUCCESS)
-				{
-					ds->setDataNotifSwitch(flags,
-						[ds](ResponseResult res) {
-							printf("result of setDataNotifSwitch is %u\n", (GF_UINT32)res);
-
-							if (res == ResponseResult::RREST_SUCCESS)
-							{
-								ds->enableDataNotification(1);
-							}
-						}
-					);
-				}
-			}
-		);
-	}
 };
 
 int _tmain(int argc, _TCHAR* argv[])
@@ -390,6 +345,12 @@ int _tmain(int argc, _TCHAR* argv[])
 	// set console handler to receive Ctrl+C command so that we can exit the app by Ctrl+C.
 	if (SetConsoleCtrlHandler((PHANDLER_ROUTINE)ctrlhandler, TRUE))
 	{
+		unsigned int loopCnt = 0;
+		bool ledOn = false;
+		bool motorOn = true;
+		long long lastCmdTime = 0;
+
+
 		do
 		{
 			// set up 50ms timeout so we can handle console commands
@@ -405,6 +366,53 @@ int _tmain(int argc, _TCHAR* argv[])
 			{
 				cout << "Method run() failed: " << static_cast<GF_UINT32>(retCode) << endl;
 				break;
+			}
+
+			auto millisec_since_epoch = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+
+			if (millisec_since_epoch - lastCmdTime > 2000)	// 2000ms
+			{
+				auto device = gforceHandle->getDevice();
+
+				if (device != nullptr && device->getConnectionStatus() == DeviceConnectionStatus::Connected)
+				{
+					auto ds = device->getDeviceSetting();
+
+					if (ds)
+					{
+						// LED control
+						ds->ledControlTest(ledOn ? DeviceSetting::LedControlTestType::On : DeviceSetting::LedControlTestType::Off,
+							[](ResponseResult result) {
+								string ret = (result == ResponseResult::RREST_SUCCESS) ? ("sucess") : ("failed");
+								printf("result of ledControlTest is %s(%d)\n", ret.c_str(), result);
+
+								if (result != ResponseResult::RREST_SUCCESS)
+								{
+									// Do something
+
+								}
+							}
+						);
+
+						// Motor control
+						ds->vibrateControl(motorOn ? DeviceSetting::VibrateControlType::On : DeviceSetting::VibrateControlType::Off,
+							[](ResponseResult result) {
+								string ret = (result == ResponseResult::RREST_SUCCESS) ? ("sucess") : ("failed");
+								printf("result of vibrateControl is %s(%d)\n", ret.c_str(), result);
+
+								if (result != ResponseResult::RREST_SUCCESS)
+								{
+									// Do something
+
+								}
+							}
+						);
+					}
+				}
+
+				ledOn = !ledOn;
+				motorOn = !motorOn;
+				lastCmdTime = millisec_since_epoch;
 			}
 		}
 		// Loop ends while the hub is unplugged or Ctrl+C is pressed.
