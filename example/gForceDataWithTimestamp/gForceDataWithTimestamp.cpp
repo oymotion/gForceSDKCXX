@@ -85,6 +85,15 @@ public:
 		: mHub(pHub)
 	{
 	}
+
+	~GForceHandle()
+	{
+		if (outFile.is_open()) {
+			outFile.close();
+		}
+	}
+
+
 	/// This callback is called when the Hub finishes scanning devices.
 	virtual void onScanFinished() override
 	{
@@ -249,10 +258,21 @@ public:
 
 		if (!outFile.is_open())
 		{
-			outFile.open("output.txt", std::ios::out);
+			std::string fname;
+			std::string ts = getTimestamp();
+			std::string::size_type pos;
+
+			while ((pos = ts.find(":")) != std::string::npos)   //替换所有指定子串
+			{
+				ts.replace(pos, 1, ".");
+			}
+	
+			fname = "output_" + ts + ".txt";
+			
+			outFile.open(fname, std::ios::out);
 
 			if (!outFile) {
-				std::cerr << "创建文件失败" << std::endl;
+				std::cerr << "创建文件" << fname << "失败" << std::endl;
 				return;
 			}
 		}
@@ -262,82 +282,94 @@ public:
 
 		switch (dataType) {
 		case DeviceDataType::DDT_ACCELERATE:
-			outFile << getTimestamp() << " DDT_ACCELERATE";
+			outFile << getTimestamp() << " ACCELERATE";
+
 			for (int i=0; i<data->size(); i++)
 			{
 				char hex_str[32];
-				outFile << " " << std::setfill('0') << std::setw(2) << _itoa_s(data->at(i), hex_str, 16);
+				outFile << " " << std::setfill('0') << std::setw(2) << hex_str;
 			}
 			outFile << std::endl;
 			break;
 
 		case DeviceDataType::DDT_GYROSCOPE:
-			outFile << getTimestamp() << " DDT_GYROSCOPE";
+			outFile << getTimestamp() << " GYROSCOPE";
+
 			for (int i = 0; i < data->size(); i++)
 			{
 				char hex_str[32];
-				outFile << " " << std::setfill('0') << std::setw(2) << _itoa_s(data->at(i), hex_str, 16);
+				outFile << " " << std::setfill('0') << std::setw(2) << hex_str;
 			}
 			outFile << std::endl;
 			break;
 
 		case DeviceDataType::DDT_MAGNETOMETER:
-			outFile << getTimestamp() << " DDT_MAGNETOMETER";
+			outFile << getTimestamp() << " MAGNETOMETER";
+
 			for (int i = 0; i < data->size(); i++)
 			{
 				char hex_str[32];
-				outFile << " " << std::setfill('0') << std::setw(2) << _itoa_s(data->at(i), hex_str, 16);
+				outFile << " " << std::setfill('0') << std::setw(2) << hex_str;
 			}
 			outFile << std::endl;
 			break;
 
 		case DeviceDataType::DDT_EULERANGLE:
-			outFile << getTimestamp() << " DDT_EULERANGLE";
+			outFile << getTimestamp() << " EULERANGLE";
+
 			for (int i = 0; i < data->size(); i++)
 			{
 				char hex_str[32];
-				outFile << " " << std::setfill('0') << std::setw(2) << _itoa_s(data->at(i), hex_str, 16);
+				outFile << " " << std::setfill('0') << std::setw(2) << hex_str;
 			}
 			outFile << std::endl;
 			break;
 
 		case DeviceDataType::DDT_QUATERNION:
-			outFile << getTimestamp() << " DDT_QUATERNION";
+			outFile << getTimestamp() << " QUATERNION";
+
 			for (int i = 0; i < data->size(); i++)
 			{
 				char hex_str[32];
-				outFile << " " << std::setfill('0') << std::setw(2) << _itoa_s(data->at(i), hex_str, 16);
+				outFile << " " << std::setfill('0') << std::setw(2) << hex_str;
 			}
 			outFile << std::endl;
 			break;
 
 		case DeviceDataType::DDT_ROTATIONMATRIX:
-			outFile << getTimestamp() << " DDT_ROTATIONMATRIX";
+			outFile << getTimestamp() << " ROTATIONMATRIX";
+
 			for (int i = 0; i < data->size(); i++)
 			{
 				char hex_str[32];
-				outFile << " " << std::setfill('0') << std::setw(2) << _itoa_s(data->at(i), hex_str, 16);
+				outFile << " " << std::setfill('0') << std::setw(2) << hex_str;
 			}
 			outFile << std::endl;
 			break;
 
 		case DeviceDataType::DDT_GESTURE:
-			outFile << getTimestamp() << " DDT_GESTURE";
+			outFile << getTimestamp() << " GESTURE";
+
 			for (int i = 0; i < data->size(); i++)
 			{
 				char hex_str[32];
-				outFile << " " << std::setfill('0') << std::setw(2) << _itoa_s(data->at(i), hex_str, 16);
+				outFile << " " << std::setfill('0') << std::setw(2) << hex_str;
 			}
 			outFile << std::endl;
 			break;
 
 		case DeviceDataType::DDT_EMGRAW:
-			outFile << getTimestamp() << " DDT_EMGRAW";
+			outFile << getTimestamp() << " EMGRAW";
+
 			for (int i = 0; i < data->size(); i++)
 			{
 				char hex_str[32];
-				outFile << " " << std::setfill('0') << std::setw(2) << _itoa_s(data->at(i), hex_str, 16);
+				_itoa_s(data->at(i), hex_str, 16);
+
+				outFile << " " << std::setfill('0') << std::setw(2) << hex_str;
+				// cout << " " << std::setfill('0') << std::setw(2) << hex_str;
 			}
+			
 			outFile << std::endl;
 			break;
 
@@ -434,7 +466,7 @@ private:
 		auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
 		// 使用stringstream来格式化输出
 		std::stringstream ss;
-		ss << std::put_time(&now_tm, "%Y-%m-%d %H:%M:%S");
+		ss << std::put_time(&now_tm, "%Y-%m-%d_%H:%M:%S");
 		ss << '.' << std::setfill('0') << std::setw(3) << now_ms.count();
 		return ss.str();
 	}
